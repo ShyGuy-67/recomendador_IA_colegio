@@ -26,6 +26,7 @@ Cuando tengas datos suficientes, entrega las recomendaciones con el siguiente fo
 - 🎬📚🎵 **Título y Creador:** (Año)
 - 💡 **¿Por qué te gustará?:** (Explicación extendida conectando directamente los intereses del usuario entre diferentes medios si aplica).
 - 🎧 **Enlaces directos:**
+- 🎬 [Buscar en Netflix](https://www.netflix.com/search?q=Nombre%20Pelicula%20o%20Serie)
   - 🔗 [Escuchar en Spotify](https://open.spotify.com/search/Nombre%20Artista%20Cancion)
   - 🎬 [Ver/Escuchar en YouTube](https://www.youtube.com/results?search_query=Nombre%20Artista%20Cancion)
 
