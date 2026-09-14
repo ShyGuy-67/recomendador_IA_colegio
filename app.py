@@ -5,7 +5,7 @@ from google import genai
 st.set_page_config(page_title="Recomendador Cultural IA", page_icon="🎬", layout="centered")
 
 # 🔑 INGRESA TU API KEY DE GOOGLE AI STUDIO AQUÍ:
-API_KEY = st.secrets.get "AQ.Ab8RN6InG3bbnNPSr8E4q-ZKXwvyZ9n8XRRgy7vJ0XN4Iqhuvw"
+API_KEY = st.secrets[AQ.Ab8RN6InG3bbnNPSr8E4q-ZKXwvyZ9n8XRRgy7vJ0XN4Iqhuvw]
 
 # System Prompt oficial de tu proyecto
 SYSTEM_PROMPT = """
