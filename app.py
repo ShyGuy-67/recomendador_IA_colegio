@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 from google import genai
 
@@ -6,6 +7,43 @@ st.set_page_config(page_title="Recomendador Cultural IA", page_icon="🎬", layo
 
 # 🔑 INGRESA TU API KEY DE GOOGLE AI STUDIO AQUÍ:
 API_KEY = st.secrets["API_KEY"]
+
+PRIMARY_MODEL = "gemini-1.5-flash"
+FALLBACK_MODEL = "gemini-1.5-pro"
+MAX_RETRIES = 3
+INITIAL_WAIT_SECONDS = 2
+
+
+def _es_error_temporal(error):
+    """Detecta saturación o caídas temporales de la API (503 / UNAVAILABLE)."""
+    texto = str(error).upper()
+    return any(
+        señal in texto
+        for señal in ("503", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "429", "OVERLOADED", "HIGH DEMAND")
+    )
+
+
+def generar_contenido_con_reintentos(client, contents, config):
+    """Llama a Gemini con reintentos y modelo de respaldo. No propaga errores intermedios."""
+    ultimo_error = None
+
+    for modelo in (PRIMARY_MODEL, FALLBACK_MODEL):
+        espera = INITIAL_WAIT_SECONDS
+        for intento in range(1, MAX_RETRIES + 1):
+            try:
+                return client.models.generate_content(
+                    model=modelo,
+                    contents=contents,
+                    config=config,
+                )
+            except Exception as error:
+                ultimo_error = error
+                if not _es_error_temporal(error) or intento == MAX_RETRIES:
+                    break
+                time.sleep(espera)
+                espera *= 2
+
+    raise ultimo_error
 
 # System Prompt oficial de tu proyecto
 SYSTEM_PROMPT = """
@@ -26,7 +64,7 @@ Cuando tengas datos suficientes, entrega las recomendaciones con el siguiente fo
 - 🎬📚🎵 **Título y Creador:** (Año)
 - 💡 **¿Por qué te gustará?:** (Explicación extendida conectando directamente los intereses del usuario entre diferentes medios si aplica).
 - 🎧 **Enlaces directos:**
-- 🎬 [Buscar en Netflix](https://www.netflix.com/search?q=Nombre%20Pelicula%20o%20Serie)
+  - 🎬 [Buscar en Netflix](https://www.netflix.com/search?q=Nombre%20Pelicula%20o%20Serie)
   - 🔗 [Escuchar en Spotify](https://open.spotify.com/search/Nombre%20Artista%20Cancion)
   - 🎬 [Ver/Escuchar en YouTube](https://www.youtube.com/results?search_query=Nombre%20Artista%20Cancion)
 
@@ -69,16 +107,19 @@ if prompt := st.chat_input("Escribe tus gustos o responde al cuestionario..."):
                         role = "user" if msg["role"] == "user" else "model"
                         contents.append({"role": role, "parts": [{"text": msg["content"]}]})
                     
-                    response = client.models.generate_content(
-                        model='gemini-3.6-flash',
-                        contents=contents,
-                        config={
+                    response = generar_contenido_con_reintentos(
+                        client,
+                        contents,
+                        {
                             "system_instruction": SYSTEM_PROMPT,
-                            "temperature": 0.6
-                        }
+                            "temperature": 0.6,
+                        },
                     )
-                    
+
                     st.markdown(response.text)
                     st.session_state.messages.append({"role": "assistant", "content": response.text})
-                except Exception as e:
-                    st.error(f"Error de conexión: {e}")
+                except Exception:
+                    st.markdown(
+                        "Estoy teniendo un poco de saturación en este momento. "
+                        "Escribe de nuevo tu mensaje y lo intento otra vez."
+                    )
