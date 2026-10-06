@@ -70,7 +70,7 @@ if prompt := st.chat_input("Escribe tus gustos o responde al cuestionario..."):
                         contents.append({"role": role, "parts": [{"text": msg["content"]}]})
                     
                     response = client.models.generate_content(
-                        model='gemini-3.6-flash',
+                        model='gemini-2.0-flash',
                         contents=contents,
                         config={
                             "system_instruction": SYSTEM_PROMPT,
