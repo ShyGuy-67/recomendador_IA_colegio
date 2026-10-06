@@ -1,4 +1,3 @@
-import time
 import streamlit as st
 from google import genai
 
@@ -7,51 +6,6 @@ st.set_page_config(page_title="Recomendador Cultural IA", page_icon="🎬", layo
 
 # 🔑 INGRESA TU API KEY DE GOOGLE AI STUDIO AQUÍ:
 API_KEY = st.secrets["API_KEY"]
-
-PRIMARY_MODEL = "gemini-1.5-flash"
-FALLBACK_MODEL = "gemini-1.5-pro"
-MAX_RETRIES = 4
-INITIAL_WAIT_SECONDS = 2
-MAX_AUTO_RERUNS = 6
-
-
-def generar_contenido_con_reintentos(client, contents, config):
-    """Llama a Gemini con reintentos automáticos y modelo de respaldo."""
-    ultimo_error = None
-    espera = INITIAL_WAIT_SECONDS
-    modelos = (PRIMARY_MODEL, FALLBACK_MODEL)
-
-    for intento_global in range(MAX_RETRIES * len(modelos)):
-        modelo = modelos[intento_global % len(modelos)]
-        try:
-            return client.models.generate_content(
-                model=modelo,
-                contents=contents,
-                config=config,
-            )
-        except Exception as error:
-            ultimo_error = error
-            time.sleep(espera)
-            espera = min(espera * 2, 16)
-
-    raise ultimo_error
-
-
-def pedir_respuesta_ia():
-    client = genai.Client(api_key=API_KEY)
-    contents = []
-    for msg in st.session_state.messages:
-        role = "user" if msg["role"] == "user" else "model"
-        contents.append({"role": role, "parts": [{"text": msg["content"]}]})
-
-    return generar_contenido_con_reintentos(
-        client,
-        contents,
-        {
-            "system_instruction": SYSTEM_PROMPT,
-            "temperature": 0.6,
-        },
-    )
 
 # System Prompt oficial de tu proyecto
 SYSTEM_PROMPT = """
@@ -89,10 +43,6 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "model", "content": "¿Qué te puedo recomendar hoy?"}
     ]
-if "esperando_respuesta" not in st.session_state:
-    st.session_state.esperando_respuesta = False
-if "auto_retry_count" not in st.session_state:
-    st.session_state.auto_retry_count = 0
 
 # Mostrar historial en pantalla
 for message in st.session_state.messages:
@@ -102,34 +52,33 @@ for message in st.session_state.messages:
 # Entrada de texto del usuario
 if prompt := st.chat_input("Escribe tus gustos o responde al cuestionario..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.session_state.esperando_respuesta = True
-    st.session_state.auto_retry_count = 0
-    st.rerun()
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-if st.session_state.esperando_respuesta:
-    if API_KEY == "TU_API_KEY_AQUI" or not API_KEY:
-        with st.chat_message("assistant"):
+    with st.chat_message("assistant"):
+        if API_KEY == "TU_API_KEY_AQUI" or not API_KEY:
             st.error("⚠️ Olvidaste poner tu API Key en la línea 8 del archivo app.py")
-        st.session_state.esperando_respuesta = False
-    else:
-        texto_spinner = (
-            "Analizando tus gustos..."
-            if st.session_state.auto_retry_count == 0
-            else "La API está saturada. Reintentando automáticamente..."
-        )
-        with st.chat_message("assistant"):
-            with st.spinner(texto_spinner):
+        else:
+            with st.spinner("Analizando tus gustos..."):
                 try:
-                    response = pedir_respuesta_ia()
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": response.text}
+                    client = genai.Client(api_key=API_KEY)
+                    
+                    # Formatear el historial para Gemini
+                    contents = []
+                    for msg in st.session_state.messages:
+                        role = "user" if msg["role"] == "user" else "model"
+                        contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+                    
+                    response = client.models.generate_content(
+                        model='gemini-3.6-flash',
+                        contents=contents,
+                        config={
+                            "system_instruction": SYSTEM_PROMPT,
+                            "temperature": 0.6
+                        }
                     )
-                    st.session_state.esperando_respuesta = False
-                    st.session_state.auto_retry_count = 0
-                    st.rerun()
-                except Exception:
-                    st.session_state.auto_retry_count += 1
-                    time.sleep(3)
-                    if st.session_state.auto_retry_count >= MAX_AUTO_RERUNS:
-                        st.session_state.auto_retry_count = 0
-                    st.rerun()
+                    
+                    st.markdown(response.text)
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                except Exception as e:
+                    st.error(f"Error de conexión: {e}")
